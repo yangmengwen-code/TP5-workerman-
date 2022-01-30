@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en" >
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>LTChat</title>
+    <link href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:400,600" rel="stylesheet">
+    <link rel="stylesheet" href="__SOURCE__/css/reset.min.css">
+    <link rel="stylesheet" href="__SOURCE__/css/style.css">
+</head>
+<body>
+<div class="wrapper">
+    <div class="container">
+        <div class="left">
+            <div class="top">
+                LT online - 即时通讯 - 好友列表
+            </div>
+            <ul class="people" id="people">
+                {volist name="result" id="v"}
+                    <li class="person" data-data="{$v.tid}">
+                        <img src="__SOURCE__/{$v.timg}" alt="" />
+                        <span class="name">{$v.tname}</span>
+                        <span class="time">{$v.time}</span>
+                        <span class="preview">{$v.pre.content}</span>
+                    </li>
+                {/volist}
+            </ul>
+        </div>
+        <div class="right">
+            <div class="top"><span>To: <span class="name" id="chatPageName"></span></span></div>
+            <div class="chat"></div>
+            <div class="write">
+                <a href="javascript:;" class="write-link attach"></a>
+                <input type="text" class="content-text"/>
+                <a href="javascript:;" class="write-link smiley"></a>
+                <a href="javascript:;" class="write-link send"></a>
+                <input type="hidden" id="tid">
+            </div>
+        </div>
+    </div>
+    <input type="hidden" id="fid" value="{$current.uid}">
+</div>
+<script src="__SOURCE__/js/jquery-2.1.1.min.js"></script>
+<script>
+    var fid = $("#fid").val();
+    //实例化websocket
+    ws = new WebSocket("ws://192.168.152.195:8282");
+    //实例化
+    ws.onmessage = function (e) {
+        var message = eval("("+e.data+")");
+        switch (message.type){
+            case 'init':
+                var bind = '{"type":"bind","fid":"'+fid+'"}';
+                ws.send(bind);
+                return;
+            case 'text':
+                $('.chat').append('<div class="bubble you">'+message.content+'</div>');
+                return;
+        }
+    };
+
+
+    $(document).on('click','.person',function(){
+        $(".right").css('display','block'); //展开聊天
+        //传递名字
+        var chatname = $(this).find('.name').text();
+        $('#chatPageName').html(chatname);
+        //聊天内容
+        var chatHtml = '';
+        //获取
+        var fid = $("#fid").val();
+        var tid = $(this).attr('data-data');
+        //赋值
+        $("#tid").val(tid);
+        //请求获取聊天信息
+        $.ajax({
+            url:'/chatInfo',
+            type:'post',
+            data:{fid:fid,tid:tid},
+            dataType: 'json',
+            success:function(res){
+                if (res.Code==200) {
+                    $.each(res.Data,function (index,value) {
+                        if(value.fid != fid){
+                           chatHtml += ' <div class="bubble you">'+value.content+'</div>';
+                        }else{
+                           chatHtml += ' <div class="bubble me">'+value.content+'</div>';
+                        }
+                    })
+                    //渲染聊天界面
+                    $('.chat').html(chatHtml);
+                }else{
+                    alert('网络错误，请重试');
+                }
+            },
+            error:function(){
+                alert('网络错误，请重试');
+            }
+        })
+    })
+
+    //点击发送触发
+    $(document).on('click','.send',function(){
+        //获取文本框内容
+        var text = $('.content-text').val();
+        //展示内容
+        $('.chat').append('<div class="bubble me">'+text+'</div>');
+        //发送数据
+        var fid = $("#fid").val();
+        var tid = $('#tid').val();
+        var sendData = '{"type":"say","fid":"'+fid+'","tid":"'+tid+'","content":"'+text+'"}';
+        //发送消息
+        ws.send(sendData);
+    })
+
+    //查询好友
+    function frined(){
+        var chatList = '';
+        $('#people').html('');
+        $.ajax({
+            url:'/friends',
+            type:'post',
+            data:{fid:fid},
+            dataType: 'json',
+            success:function(res){
+                if (res.Code==200) {
+                    $.each(res.Data,function (index,val) {
+                        chatList = '<li class="person" data-data="'+val.uid+'"><img src="__SOURCE__/'+val.picture+'" alt="" /><span class="name">'+val.nickname+'</span><span class="time"></span><span class="preview"></span></li>';
+                        $('#people').append(chatList);
+                    })
+                }else{
+                    alert('未查询到好友！');
+                }
+            },
+            error:function(){
+                alert('网络错误，请重试');
+            }
+        })
+    }
+
+    //页面加载
+    $(function () {
+        frined();
+    })
+
+</script>
+</body>
+</html>
